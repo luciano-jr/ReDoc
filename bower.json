@@ -29,6 +29,7 @@
     "compiled",
     "lib",
     "demo",
+    "src",
     "build",
     "docs",
     "gulpfile.js",
