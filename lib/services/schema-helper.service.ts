@@ -1,12 +1,13 @@
 'use strict';
 import { JsonPointer } from '../utils/JsonPointer';
-import { methods as swaggerMethods, keywordTypes } from  '../utils/swagger-defs';
+import { operations as swaggerOperations, keywordTypes } from  '../utils/swagger-defs';
 import { WarningsService } from './warnings.service';
 import * as slugify from 'slugify';
 
-interface PropertyPreprocessOptions {
-  childFor: string;
+export interface PropertyPreprocessOptions {
+  childFor?: string;
   skipReadOnly?: boolean;
+  discriminator?: string;
 }
 
 // global var for this module
@@ -53,6 +54,7 @@ const injectors = {
       return propertySchema.type === 'array' && !Array.isArray(propertySchema.items);
     },
     inject: (injectTo, propertySchema = injectTo, propPointer) => {
+      if (!propertySchema.items) propertySchema.items = {};
       if (!(SchemaHelper.detectType(propertySchema.items) === 'object')) {
         injectTo._isArray = true;
         injectTo._pointer = propertySchema.items._pointer
@@ -62,6 +64,7 @@ const injectors = {
       } else {
         injectors.object.inject(injectTo, propertySchema.items);
       }
+      if (!injectTo.description) injectTo.description = propertySchema.items.description;
       injectTo._widgetType = 'array';
     }
   },
@@ -147,16 +150,22 @@ const injectors = {
     inject: (injectTo, propertySchema = injectTo) => {
       var range;
       if (propertySchema.minLength != undefined && propertySchema.maxLength != undefined) {
-        range = `[ ${propertySchema.minLength} .. ${propertySchema.maxLength} ]`;
+        if (propertySchema.minLength === propertySchema.maxLength) {
+          range = `${propertySchema.minLength} characters`;
+        } else {
+          range = `[ ${propertySchema.minLength} .. ${propertySchema.maxLength} ] characters`;
+        }
       } else if (propertySchema.maxLength != undefined) {
-        range = '<= ' + propertySchema.maxLength;
+        range = `<= ${propertySchema.maxLength} characters`;
       } else if (propertySchema.minLength != undefined) {
-        range = '>= ' + propertySchema.minLength;
+        if (propertySchema.minLength === 1) {
+          range = 'non-empty';
+        } else {
+          range = `>= ${propertySchema.minLength} characters`;
+        }
       }
 
-      if (range) {
-        injectTo._range = range + ' characters';
-      }
+      injectTo._range = range;
     }
   },
   file: {
@@ -206,7 +215,11 @@ export class SchemaHelper {
   static preprocessProperties(schema:any, pointer:string, opts: PropertyPreprocessOptions) {
     let requiredMap = {};
     if (schema.required) {
-      schema.required.forEach(prop => requiredMap[prop] = true);
+      if (Array.isArray(schema.required)) {
+        schema.required.forEach(prop => requiredMap[prop] = true);
+      } else {
+        WarningsService.warn(`required must be an array: "${typeof schema.required}" found at ${pointer}`);
+      }
     }
 
     let props = schema.properties && Object.keys(schema.properties).map(propName => {
@@ -214,14 +227,13 @@ export class SchemaHelper {
       let propPointer = propertySchema._pointer ||
         JsonPointer.join(pointer, ['properties', propName]);
       propertySchema = SchemaHelper.preprocess(propertySchema, propPointer);
-      propertySchema._name = propName;
+      propertySchema.name = propName;
       // stop endless discriminator recursion
       if (propertySchema._pointer === opts.childFor) {
         propertySchema._pointer = null;
       }
       propertySchema._required = !!requiredMap[propName];
-      propertySchema.isDiscriminator = (schema.discriminator === propName
-        || schema['x-extendedDiscriminator'] === propName);
+      propertySchema.isDiscriminator = opts.discriminator === propName;
       return propertySchema;
     });
 
@@ -244,7 +256,7 @@ export class SchemaHelper {
     var addProps = schema.additionalProperties;
     let ptr = addProps._pointer || JsonPointer.join(pointer, ['additionalProperties']);
     let res = SchemaHelper.preprocess(addProps, ptr);
-    res._name = '<Additional Properties> *';
+    res.name = '<Additional Properties> *';
     return res;
   }
 
@@ -261,9 +273,9 @@ export class SchemaHelper {
     return res;
   }
 
-  static methodSummary(method) {
-    return method.summary || method.operationId ||
-      (method.description && method.description.substring(0, 50)) || '<no description>';
+  static operationSummary(operation) {
+    return operation.summary || operation.operationId ||
+      (operation.description && operation.description.substring(0, 50)) || '<no description>';
   }
 
   static detectType(schema) {
@@ -278,26 +290,26 @@ export class SchemaHelper {
     }
   }
 
-  static getTagsWithMethods(schema) {
+  static getTagsWithOperations(schema) {
     let tags = {};
     for (let tag of schema.tags || []) {
       tags[tag.name] = tag;
-      tag.methods = [];
+      tag.operations = [];
     }
 
     let paths = schema.paths;
     for (let path of Object.keys(paths)) {
-      let methods = Object.keys(paths[path]).filter((k) => swaggerMethods.has(k));
-      for (let method of methods) {
-        let methodInfo = paths[path][method];
-        let methodTags = methodInfo.tags;
+      let operations = Object.keys(paths[path]).filter((k) => swaggerOperations.has(k));
+      for (let operation of operations) {
+        let operationInfo = paths[path][operation];
+        let operationTags = operationInfo.tags;
 
         // empty tag
-        if (!(methodTags && methodTags.length)) {
-          methodTags = [''];
+        if (!(operationTags && operationTags.length)) {
+          operationTags = [''];
         }
-        let methodPointer = JsonPointer.compile(['paths', path, method]);
-        for (let tagName of methodTags) {
+        let operationPointer = JsonPointer.compile(['paths', path, operation]);
+        for (let tagName of operationTags) {
           let tag = tags[tagName];
           if (!tag) {
             tag = {
@@ -306,13 +318,29 @@ export class SchemaHelper {
             tags[tagName] = tag;
           }
           if (tag['x-traitTag']) continue;
-          if (!tag.methods) tag.methods = [];
-          tag.methods.push(methodInfo);
-          methodInfo._pointer = methodPointer;
+          if (!tag.operations) tag.operations = [];
+          tag.operations.push(operationInfo);
+          operationInfo._pointer = operationPointer;
+          operationInfo.operation = operation;
         }
       }
     }
 
     return tags;
+  }
+
+  static moveRequiredPropsFirst(properties: any[], _required: string[]|null) {
+    let required = _required || [];
+    properties.sort((a, b) => {
+      if ((!a._required && b._required)) {
+        return 1;
+      } else if (a._required && !b._required) {
+        return -1;
+      } else if (a._required && b._required) {
+        return required.indexOf(a.name) > required.indexOf(b.name) ? 1 : -1;
+      } else {
+        return 0;
+      }
+    });
   }
 }

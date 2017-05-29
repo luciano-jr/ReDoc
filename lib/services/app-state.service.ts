@@ -10,6 +10,9 @@ export class AppStateService {
   error = new BehaviorSubject<any>(null);
   loading = new Subject<boolean>();
   initialized = new BehaviorSubject<any>(false);
+  rightPanelHidden = new BehaviorSubject<any>(false);
+
+  searchContainingPointers = new BehaviorSubject<string|null[]>([]);
 
   startLoading() {
     this.loading.next(true);

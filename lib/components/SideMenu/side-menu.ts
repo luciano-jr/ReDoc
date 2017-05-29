@@ -1,11 +1,19 @@
 'use strict';
 
-import { Component, EventEmitter, Input, Output, ElementRef, ChangeDetectorRef, OnInit, OnDestroy } from '@angular/core';
+import { Component,
+  EventEmitter,
+  Input,
+  Output,
+  ElementRef,
+  ChangeDetectorRef,
+  ViewChild,
+  OnInit,
+  OnDestroy
+} from '@angular/core';
 
-//import { global } from '@angular/core/src/facade/lang';
 import { trigger, state, animate, transition, style } from '@angular/core';
-import { BaseComponent, SpecManager } from '../base';
 import { ScrollService, MenuService, OptionsService, MenuItem } from '../../services/';
+import { PerfectScrollbar } from '../../shared/components';
 import { BrowserDomAdapter as DOM } from '../../utils/browser-adapter';
 
 const global = window;
@@ -14,17 +22,6 @@ const global = window;
   selector: 'side-menu-items',
   templateUrl: './side-menu-items.html',
   styleUrls: ['./side-menu-items.css'],
-  animations: [
-    trigger('itemAnimation', [
-      state('collapsed, void',
-        style({ height: '0px' })),
-      state('expanded',
-        style({ height: '*' })),
-      transition('collapsed <=> expanded', [
-        animate('200ms ease')
-      ])
-    ])
-  ]
 })
 export class SideMenuItems {
   @Input() items: MenuItem[];
@@ -40,10 +37,12 @@ export class SideMenuItems {
   templateUrl: './side-menu.html',
   styleUrls: ['./side-menu.css']
 })
-export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
+export class SideMenu implements OnInit, OnDestroy {
   activeCatCaption: string;
   activeItemCaption: string;
   menuItems: Array<MenuItem>;
+  @Input() itemsTemplate;
+  @ViewChild(PerfectScrollbar) PS:PerfectScrollbar;
 
   private options: any;
   private $element: any;
@@ -51,12 +50,16 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
   private $resourcesNav: any;
   private $scrollParent: any;
 
-  private firstChange = true;
+  private changedActiveSubscription;
+  private changedSubscription;
 
-  constructor(specMgr:SpecManager, elementRef:ElementRef,
-  private scrollService:ScrollService, private menuService:MenuService,
-  optionsService:OptionsService, private detectorRef:ChangeDetectorRef) {
-    super(specMgr);
+  constructor(
+    elementRef:ElementRef,
+    private scrollService:ScrollService,
+    private menuService:MenuService,
+    optionsService:OptionsService,
+    private detectorRef:ChangeDetectorRef,
+  ) {
     this.$element = elementRef.nativeElement;
 
     this.activeCatCaption = '';
@@ -64,7 +67,10 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
 
     this.options = optionsService.options;
 
-    this.menuService.changed.subscribe((evt) => this.changed(evt));
+    this.changedActiveSubscription = this.menuService.changedActiveItem.subscribe((evt) => this.changed(evt));
+    this.changedSubscription = this.menuService.changed.subscribe((evt) => {
+      this.update();
+    });
   }
 
   changed(item) {
@@ -81,17 +87,19 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
       this.activeItemCaption = '';
     }
 
-    //safari doesn't update bindings if not run changeDetector manually :(
+    // safari doesn't update bindings if not run changeDetector manually :(
+    this.update();
+    this.scrollActiveIntoView();
+  }
+
+  update() {
     this.detectorRef.detectChanges();
-    if (this.firstChange) {
-      this.scrollActiveIntoView();
-      this.firstChange = false;
-    }
+    this.PS && this.PS.update();
   }
 
   scrollActiveIntoView() {
     let $item = this.$element.querySelector('li.active, label.active');
-    if ($item) $item.scrollIntoView();
+    if ($item) $item.scrollIntoViewIfNeeded();
   }
 
   activateAndScroll(item) {
@@ -99,7 +107,7 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
       this.toggleMobileNav();
     }
 
-    this.menuService.activate(item.flatIdx);
+    this.menuService.activate(item);
     this.menuService.scrollToActive();
   }
 
@@ -136,6 +144,8 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
   }
 
   destroy() {
+    this.changedActiveSubscription.unsubscribe();
+    this.changedSubscription.unsubscribe();
     this.scrollService.unbind();
     this.menuService.destroy();
   }
@@ -145,6 +155,9 @@ export class SideMenu extends BaseComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
-    this.preinit();
+    this.init();
+  }
+
+  ngAfterViewInit() {
   }
 }

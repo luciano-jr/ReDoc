@@ -2,20 +2,18 @@
 $mobile-menu-compact-breakpoint: 550px;
 
 :host {
-  display: block;
+  display: flex;
   box-sizing: border-box;
+}
+
+#resources-nav {
+  position: relative;
+  width: 100%;
 }
 
 ul.menu-root {
   margin: 0;
   padding: 0;
-}
-
-.menu-header {
-  text-transform: uppercase;
-  color: $headers-color;
-  padding: 0 $side-menu-item-hpadding;
-  margin: 10px 0;
 }
 
 .mobile-nav {
@@ -39,18 +37,13 @@ ul.menu-root {
     float: right;
     vertical-align: middle;
   }
-
-  .menu-header {
-    padding: 0 10px 0 20px;
-    font-size: 0.95em;
-
-    @media (max-width: $mobile-menu-compact-breakpoint) {
-      display: none;
-    }
-  }
 }
 
 @media (max-width: $side-menu-mobile-breakpoint) {
+  :host {
+    display: block;
+  }
+
   .mobile-nav {
     display: block;
   }
@@ -59,10 +52,6 @@ ul.menu-root {
     height: 0;
     overflow-y: auto;
     transition: all 0.3s ease;
-  }
-
-  #resources-nav .menu-header {
-    display: none;
   }
 
   .menu-subitems {

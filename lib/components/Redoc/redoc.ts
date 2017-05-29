@@ -15,13 +15,29 @@ import { BaseComponent } from '../base';
 import * as detectScollParent from 'scrollparent';
 
 import { SpecManager } from '../../utils/spec-manager';
-import { OptionsService, Hash, AppStateService, SchemaHelper } from '../../services/index';
+import {
+  SearchService,
+  OptionsService,
+  Options,
+  Hash,
+  AppStateService,
+  SchemaHelper,
+  MenuService,
+  Marker
+} from '../../services/';
 import { LazyTasksService } from '../../shared/components/LazyFor/lazy-for';
 
 @Component({
   selector: 'redoc',
   templateUrl: './redoc.html',
   styleUrls: ['./redoc.css'],
+  providers: [
+    SpecManager,
+    MenuService,
+    SearchService,
+    LazyTasksService,
+    Marker
+  ]
   //changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class Redoc extends BaseComponent implements OnInit {
@@ -29,7 +45,7 @@ export class Redoc extends BaseComponent implements OnInit {
 
   error: any;
   specLoaded: boolean;
-  options: any;
+  options: Options;
 
   loadingProgress: number;
 
@@ -62,7 +78,7 @@ export class Redoc extends BaseComponent implements OnInit {
     //parse options (top level component doesn't support inputs)
     optionsMgr.parseOptions( this.element );
     let scrollParent = detectScollParent( this.element );
-    if (scrollParent === DOM.defaultDoc().body) scrollParent = window;
+    if (scrollParent === (document.scrollingElement || document.documentElement)) scrollParent = window;
     optionsMgr.options.$scrollParent = scrollParent;
     this.options = optionsMgr.options;
     this.lazyTasksService.allSync = !this.options.lazyRendering;
@@ -84,7 +100,8 @@ export class Redoc extends BaseComponent implements OnInit {
   }
 
   load() {
-    this.specMgr.load(this.options.specUrl).catch(err => {
+    // bunlde spec directly if passsed or load by URL
+    this.specMgr.load(this.options.spec || this.options.specUrl).catch(err => {
       throw err;
     });
 
@@ -100,9 +117,9 @@ export class Redoc extends BaseComponent implements OnInit {
       if (!spec) {
         this.appState.startLoading();
       } else {
+        this.specLoaded = true;
         this.changeDetector.markForCheck();
         this.changeDetector.detectChanges();
-        this.specLoaded = true;
         setTimeout(() => {
           this.hash.start();
         });

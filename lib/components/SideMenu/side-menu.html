@@ -1,13 +1,17 @@
 <div #mobile class="mobile-nav" (click)="toggleMobileNav()">
-  <span class="menu-header"> API Reference: </span>
   <span class="selected-item-info">
     <span class="selected-tag"> {{activeCatCaption}} </span>
     <span class="selected-endpoint">{{activeItemCaption}}</span>
   </span>
 </div>
-<div #desktop id="resources-nav">
-  <h5 class="menu-header"> API reference </h5>
+<ng-template #default>
+  <side-menu-items [items]="menuItems" (activate)="activateAndScroll($event)"></side-menu-items>
+</ng-template>
+
+<div #desktop id="resources-nav" perfect-scrollbar>
   <ul class="menu-root">
-    <side-menu-items [items]="menuItems" (activate)="activateAndScroll($event)"></side-menu-items>
+    <div *ngIf="itemsTemplate; else default">
+      <ng-container *ngTemplateOutlet="itemsTemplate; context: this"></ng-container>
+    </div>
   </ul>
 </div>

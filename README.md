@@ -17,19 +17,22 @@
 
 ## Features
 - Extremely easy deployment
-- It’s free and open-source project under MIT license
-- The widest OpenAPI features support (yes, it supports even `discriminator`)
-- Neat **interactive** documentation for nested objects
-
-<img src="http://i.imgur.com/260gaV4.png" width="500">
-
-- Code samples support (via vendor extension)
+- The widest OpenAPI features support (yes, it supports even `discriminator`) <br>
+![](docs/images/discriminator-demo.gif)
+- Neat **interactive** documentation for nested objects <br>
+![](docs/images/nested-demo.gif)
+- Code samples support (via vendor extension) <br>
+![](docs/images/code-samples-demo.gif)
+- Progressive loading with `lazy-rendering` options <br>
+![](docs/images/progressive-loading-demo.gif)
 - Responsive three-panel design with menu/scrolling synchronization
-- Integrate API introduction into side menu - ReDoc takes advantage of markdown headings from OpenAPI description field. It pulls them into side menu and also supports deep linking.
+- Integrate API Introduction into side menu - ReDoc takes advantage of markdown headings from OpenAPI description field. It pulls them into side menu and also supports deep linking.
+- High-level grouping in side-menu via [`x-tagGroups`](docs/redoc-vendor-extensions.md#x-tagGroups) vendor extension
+- Multiple ReDoc instances on single page ([example](demo/examples/multiple-apis/index.html))
 
 ## Roadmap
-  - [x] performance optimizations
-  - [ ] better navigation (menu improvements + search)
+  - [x] ~~performance optimizations~~
+  - [x] ~~better navigation (menu improvements + search)~~
   - [ ] ability to simple branding/styling
   - [ ] built-in API Console
   - [ ] docs pre-rendering (performance and SEO)
@@ -38,7 +41,15 @@
 We host the latest and all the previous ReDoc releases on GitHub Pages-based **CDN**:
 - particular release, e.g. `v1.2.0`: https://rebilly.github.io/ReDoc/releases/v1.2.0/redoc.min.js
 - `v1.x.x` release: https://rebilly.github.io/ReDoc/releases/v1.x.x/redoc.min.js
-- `latest` release: https://rebilly.github.io/ReDoc/releases/latest/redoc.min.js **[not for production]**
+- `latest` release: https://rebilly.github.io/ReDoc/releases/latest/redoc.min.js this file is updated with each release of ReDoc and may introduce breaking changes. **Not recommended to use in production.** Use particular release or `v1.x.x`.
+
+## Some Real-life usages
+- [Rebilly](https://rebilly.github.io/RebillyAPI)
+- [Docker Engine](https://docs.docker.com/engine/api/v1.25/)
+- [Zuora](https://www.zuora.com/developer/api-reference/)
+- [Shopify Draft Orders](https://help.shopify.com/api/draft-orders)
+- [Discourse](https://docs.discourse.org)
+- [APIs.guru](https://apis.guru/api-doc/)
 
 ## Deployment
 
@@ -50,6 +61,7 @@ We host the latest and all the previous ReDoc releases on GitHub Pages-based **C
   <head>
     <title>ReDoc</title>
     <!-- needed for adaptive design -->
+    <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!--
@@ -69,6 +81,8 @@ We host the latest and all the previous ReDoc releases on GitHub Pages-based **C
 </html>
 ```
 That's all folks!
+
+**IMPORTANT NOTE:** if you work with untrusted user spec, use `untrusted-spec` [option](#redoc-tag-attributes) to prevent XSS security risks.
 
 ### 1. Install ReDoc (skip this step for CDN)
 Install using [bower](bower.io):
@@ -111,12 +125,15 @@ ReDoc makes use of the following [vendor extensions](http://swagger.io/specifica
 * [`x-logo`](docs/redoc-vendor-extensions.md#x-logo) - is used to specify API logo
 * [`x-traitTag`](docs/redoc-vendor-extensions.md#x-traitTag) - useful for handling out common things like Pagination, Rate-Limits, etc
 * [`x-code-samples`](docs/redoc-vendor-extensions.md#x-code-samples) - specify operation code samples
+* [`x-examples`](docs/redoc-vendor-extensions.md#x-examples) - specify JSON example for requests
 * [`x-nullable`](docs/redoc-vendor-extensions.md#nullable) - mark schema param as a nullable
 * [`x-displayName`](docs/redoc-vendor-extensions.md#x-displayname) - specify human-friendly names for the menu categories
 * [`x-tagGroups`](docs/redoc-vendor-extensions.md#x-tagGroups) - group tags by categories in the side menu
+* [`x-servers`](docs/redoc-vendor-extensions.md#x-servers) - ability to specify different servers for API (backported from OpenAPI 3.0)
 
 ### `<redoc>` tag attributes
 * `spec-url` - relative or absolute url to your spec file;
+* `untrusted-spec` - if set, the spec is considered untrusted and all HTML/markdown is sanitized to prevent XSS. **Disabled by default** for performance reasons. **Enable this option if you work with untrusted user data!**
 * `scroll-y-offset` - If set, specifies a vertical scroll-offset. This is often useful when there are fixed positioned elements at the top of the page, such as navbars, headers etc;
 `scroll-y-offset` can be specified in various ways:
   * **number**: A fixed number of pixels to be used as offset;
@@ -124,15 +141,18 @@ ReDoc makes use of the following [vendor extensions](http://swagger.io/specifica
   * **function**: A getter function. Must return a number representing the offset (in pixels);
 * `suppress-warnings` - if set, warnings are not rendered at the top of documentation (they still are logged to the console).
 * `lazy-rendering` - if set, enables lazy rendering mode in ReDoc. This mode is useful for APIs with big number of operations (e.g. > 50). In this mode ReDoc shows initial screen ASAP and then renders the rest operations asynchronously while showing progress bar on the top. Check out the [demo](\\rebilly.github.io/ReDoc) for the example.
-* `hide-hostname` - if set, the protocol and hostname is not shown in the method definition.
+* `hide-hostname` - if set, the protocol and hostname is not shown in the operation definition.
 * `expand-responses` - specify which responses to expand by default by response codes. Values should be passed as comma-separated list without spaces e.g. `expand-responses="200,201"`. Special value `"all"` expands all responses by default. Be careful: this option can slow-down documentation rendering time.
+* `required-props-first` - show required properties first ordered in the same order as in `required` array.
+* `no-auto-auth` - do not inject Authentication section automatically
+* `path-in-middle-panel` - show path link and HTTP verb in the middle panel instead of the right one
 
 ## Advanced usage
 Instead of adding `spec-url` attribute to the `<redoc>` element you can initialize ReDoc via globally exposed `Redoc` object:
 ```js
-Redoc.init(specUrl, options)
+Redoc.init(specOrSpecUrl, options)
 ```
-
+`specOrSpecUrl` is either JSON object with specification or an URL to the spec in `JSON` or `YAML` format.
 `options` is javascript object with camel-cased version of `<redoc>` tag attribute names as the keys, e.g.:
 ```js
 Redoc.init('http://petstore.swagger.io/v2/swagger.json', {
